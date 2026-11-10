@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+
+    participant Sensor as Sensor IoT
+    participant API as API
+    participant Monitor as MonitoringService
+    participant Sessao as SessionService
+    participant Banco as PostgreSQL
+    participant Rabbit as RabbitMQ
+    participant Notificacao as NotificationService
+    actor Gestor
+
+    Sensor->>API: enviarDados(TelemetryDTO)
+    API->>Monitor: processarDados(TelemetryDTO)
+    
+    Monitor->>Banco: salvarTelemetria(TelemetryDTO)
+    Banco-->>Monitor: TelemetryRecordDTO
+
+    Monitor->>Sessao: consultarSessao(labId)
+    Sessao->>Banco: buscarSessaoAtiva(labId)
+    Banco-->>Sessao: SessionDTO
+    Sessao-->>Monitor: SessionDTO
+
+    Monitor->>Monitor: analisarConsumo(TelemetryDTO, SessionDTO)
+
+    alt Consumo elevado e sem utilização
+        Monitor->>Banco: registrarOcorrencia(OccurrenceDTO)
+        Banco-->>Monitor: OccurrenceDTO
+
+        Monitor-)Rabbit: publicarAlerta(AlertDTO)
+        Rabbit-)Notificacao: processarAlerta(AlertDTO)
+
+        Notificacao->>Banco: salvarNotificacao(AlertDTO)
+        Banco-->>Notificacao: NotificationDTO
+
+        Notificacao-->>Gestor: Enviar alerta
+    else Consumo normal ou laboratório em uso
+        Monitor->>Banco: registrarStatus(StatusDTO)
+        Banco-->>Monitor: StatusDTO
+    end
